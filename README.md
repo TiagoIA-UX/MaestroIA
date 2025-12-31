@@ -57,8 +57,8 @@ maestroia/
 
 1. Clone o repositório:
    ```bash
-   git clone https://github.com/TiagoIA-UX/MaestroIA-Marketing.git
-   cd MaestroIA-Marketing
+   git clone https://github.com/TiagoIA-UX/MaestroIA.git
+   cd MaestroIA
    ```
 
 2. Crie um ambiente virtual:
