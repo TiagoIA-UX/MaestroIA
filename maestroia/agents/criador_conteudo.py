@@ -1,4 +1,5 @@
 from langchain_openai import ChatOpenAI
+from openai import OpenAI
 from maestroia.config.settings import (
     OPENAI_API_KEY,
     DEFAULT_LLM_MODEL,
@@ -6,13 +7,12 @@ from maestroia.config.settings import (
 )
 from maestroia.core.state import MaestroState
 
-
 llm = ChatOpenAI(
     api_key=OPENAI_API_KEY,
     model=DEFAULT_LLM_MODEL,
     temperature=DEFAULT_TEMPERATURE,
 )
-
+client = OpenAI(api_key=OPENAI_API_KEY)
 
 def agente_criador_conteudo(state: MaestroState) -> MaestroState:
     """
@@ -40,12 +40,28 @@ def agente_criador_conteudo(state: MaestroState) -> MaestroState:
     Para cada canal, gere:
     - Uma ideia principal
     - Um texto base de publicação
+    - Sugestão de imagem (descrição para geração com IA)
 
     Retorne o conteúdo de forma organizada.
     """
 
     resposta = llm.invoke(prompt)
 
+    # Gerar imagem com DALL-E baseada na sugestão
+    image_prompt = "Uma imagem inspiradora para marketing digital sustentável"
+    try:
+        image_response = client.images.generate(
+            model="dall-e-3",
+            prompt=image_prompt,
+            size="1024x1024",
+            quality="standard",
+            n=1,
+        )
+        image_url = image_response.data[0].url
+    except Exception as e:
+        image_url = f"Erro ao gerar imagem: {str(e)}"
+
     return {
-        "conteudos": [resposta.content]
+        "conteudos": [resposta.content],
+        "imagens": [image_url]
     }

@@ -12,9 +12,11 @@ O usuário define o objetivo da campanha (ex.: "Lançar produto X para público 
 
 - **Agentes Autônomos**: 6 agentes especializados (Pesquisador, Estrategista, Criador de Conteúdo, Publicador, Otimizador, Maestro).
 - **Orquestração Inteligente**: Fluxo coordenado com LangGraph, garantindo consistência e eficiência.
-- **Integrações**: APIs para OpenAI, simulações para Google Ads/Meta (expansível).
+- **Integrações**: APIs para OpenAI (GPT + DALL-E), Google Trends, simulações para SEMrush/Meta (expansível).
+- **Autenticação**: Cadastro e login com JWT e banco SQLite.
 - **Interfaces Múltiplas**: Terminal, API REST (FastAPI) e UI Web (Streamlit).
 - **Memória Vetorial**: FAISS para aprendizado contínuo de campanhas.
+- **Geração de Imagens**: DALL-E para criar imagens personalizadas nos conteúdos.
 - **Governança**: Aprovações humanas e regras de segurança.
 
 ## Arquitetura
@@ -78,6 +80,10 @@ maestroia/
 
 ## Como Usar
 
+### Cadastro e Login
+- **API**: Use `/register` para criar conta e `/token` para login (retorna JWT).
+- **UI**: Interface Streamlit inclui formulário de login básico.
+
 ### Terminal (Execução Rápida)
 ```bash
 python run.py
@@ -88,9 +94,9 @@ Executa uma campanha de exemplo e mostra o resultado completo.
 ```bash
 python api_server.py
 ```
-Acesse http://localhost:8000/docs para testar endpoints.
+Acesse http://localhost:8000/docs para testar endpoints (requer token JWT).
 
-Exemplo de requisição:
+Exemplo de requisição autenticada:
 ```json
 {
   "objetivo": "Lançar produto X para público feminino 25-40 anos",
@@ -104,7 +110,7 @@ Exemplo de requisição:
 ```bash
 streamlit run ui_app.py
 ```
-Interface simples para configurar e executar campanhas.
+Interface com login e execução de campanhas, exibindo resultados e imagens geradas.
 
 ## Exemplo de Saída
 
