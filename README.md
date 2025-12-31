@@ -221,6 +221,12 @@ streamlit run app.py
 
 ---
 
+## Atribuições
+
+Para informações sobre citações de código e licenças de terceiros, veja [ATTRIBUTIONS.md](ATTRIBUTIONS.md).
+
+---
+
 ## Licença
 
 Este projeto está licenciado sob a Licença MIT - veja o arquivo [LICENSE](LICENSE) para detalhes.
