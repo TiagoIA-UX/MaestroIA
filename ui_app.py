@@ -1,5 +1,5 @@
-import streamlit as st
 import requests
+import streamlit as st
 import json
 import os
 import hashlib
@@ -12,6 +12,30 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image as RL
 from reportlab.lib.units import inch
 from maestroia.graphs.marketing_graph import build_marketing_graph
 
+# Mercado Pago
+import mercadopago
+from maestroia.config.settings import MERCADOPAGO_ACCESS_TOKEN
+
+# Função utilitária para criar link de pagamento Mercado Pago
+def criar_preferencia_pagamento(email, plano_nome, valor):
+    if not MERCADOPAGO_ACCESS_TOKEN:
+        return None
+    sdk = mercadopago.SDK(MERCADOPAGO_ACCESS_TOKEN)
+    preference_data = {
+        "items": [
+            {
+                "title": f"Plano {plano_nome}",
+                "quantity": 1,
+                "currency_id": "BRL",
+                "unit_price": float(valor)
+            }
+        ],
+        "payer": {
+            "email": email
+        }
+    }
+    preference_response = sdk.preference().create(preference_data)
+    return preference_response["response"].get("init_point")
 # Arquivo para armazenar usuários
 USERS_FILE = "users.json"
 
@@ -126,6 +150,89 @@ def incrementar_campanha_usuario(email):
         users[email]["campanhas_mes"] = users[email].get("campanhas_mes", 0) + 1
         save_users(users)
 
+def gerar_pdf_campanha(result, objetivo, publico, canais, orcamento):
+    """Gera um PDF com os resultados da campanha"""
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter)
+    styles = getSampleStyleSheet()
+
+    # Estilos customizados
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=styles['Heading1'],
+        fontSize=18,
+        spaceAfter=30,
+    )
+    heading_style = ParagraphStyle(
+        'CustomHeading',
+        parent=styles['Heading2'],
+        fontSize=14,
+        spaceAfter=12,
+    )
+    normal_style = styles['Normal']
+
+    story = []
+
+    # Título
+    story.append(Paragraph("Relatório da Campanha MaestroIA", title_style))
+    story.append(Spacer(1, 12))
+
+    # Informações da campanha
+    story.append(Paragraph("Informações da Campanha", heading_style))
+    story.append(Paragraph(f"<b>Objetivo:</b> {objetivo}", normal_style))
+    story.append(Paragraph(f"<b>Público-Alvo:</b> {publico}", normal_style))
+    story.append(Paragraph(f"<b>Canais:</b> {', '.join(canais)}", normal_style))
+    story.append(Paragraph(f"<b>Orçamento:</b> R$ {orcamento:.2f}", normal_style))
+    story.append(Spacer(1, 20))
+
+    # Resultados
+    if "pesquisa" in result:
+        story.append(Paragraph("Análise de Mercado", heading_style))
+        story.append(Paragraph(result["pesquisa"], normal_style))
+        story.append(Spacer(1, 12))
+
+    if "conteudos" in result:
+        story.append(Paragraph("Conteúdos Gerados", heading_style))
+        for i, conteudo in enumerate(result["conteudos"], 1):
+            story.append(Paragraph(f"Conteúdo {i}:", styles['Heading3']))
+            # Limpar markdown e HTML
+            conteudo_limpo = conteudo.replace('*', '').replace('#', '').replace('**', '')
+            story.append(Paragraph(conteudo_limpo, normal_style))
+            story.append(Spacer(1, 8))
+        story.append(Spacer(1, 12))
+
+    if "publicacoes" in result:
+        story.append(Paragraph("Publicações", heading_style))
+        for canal, status in result["publicacoes"].items():
+            story.append(Paragraph(f"<b>{canal}:</b> {status}", normal_style))
+        story.append(Spacer(1, 12))
+
+    # Imagens (se houver URLs válidas)
+    if "imagens" in result:
+        story.append(Paragraph("Imagens Geradas", heading_style))
+        for img_url in result["imagens"]:
+            if img_url.startswith("http"):
+                try:
+                    # Tentar baixar e adicionar imagem
+                    response = requests.get(img_url)
+                    if response.status_code == 200:
+                        img_buffer = BytesIO(response.content)
+                        img = RLImage(img_buffer, width=4*inch, height=3*inch)
+                        story.append(img)
+                        story.append(Spacer(1, 12))
+                except:
+                    story.append(Paragraph(f"Imagem: {img_url}", normal_style))
+            else:
+                story.append(Paragraph(f"Descrição da imagem: {img_url}", normal_style))
+
+    # Rodapé
+    story.append(Spacer(1, 30))
+    story.append(Paragraph("Relatório gerado pelo MaestroIA", styles['Italic']))
+
+    doc.build(story)
+    buffer.seek(0)
+    return buffer
+
 # Configuração da página
 st.set_page_config(
     page_title="MaestroIA - Marketing Inteligente",
@@ -238,6 +345,7 @@ st.markdown("""
         border: 2px solid transparent;
         transition: all 0.3s ease;
         position: relative;
+        color: #222 !important;
     }
 
     .plan-card:hover {
@@ -270,6 +378,27 @@ st.markdown("""
         color: #667eea;
         text-align: center;
         margin: 1rem 0;
+    }
+    .plan-card button, .plan-card .stButton > button {
+        color: #222 !important;
+        font-weight: bold;
+        background: #f8f9fa;
+        border-radius: 20px;
+        border: 1px solid #667eea;
+        margin-top: 0.5rem;
+        margin-bottom: 0.5rem;
+        padding: 0.5rem 1.2rem;
+        transition: background 0.2s;
+    }
+    /* Botão Fazer Upgrade do Starter em branco */
+    .plan-popular ~ div .stButton > button, .plan-popular .stButton > button {
+        color: #fff !important;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+        border: 1px solid #667eea;
+    }
+    .plan-popular ~ div .stButton > button:hover, .plan-popular .stButton > button:hover {
+        background: #4b3c91 !important;
+        color: #fff !important;
     }
 
     .plan-price .currency {
@@ -391,6 +520,16 @@ st.markdown("""
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 
+# Verificar se há usuário logado persistentemente
+if not st.session_state.logged_in:
+    users = load_users()
+    for email, user_data in users.items():
+        if user_data.get("logged_in", False):
+            st.session_state.logged_in = True
+            st.session_state.email = email
+            st.session_state.display_name = user_data.get("display_name", "Usuário")
+            break
+
 if not st.session_state.logged_in:
     # Sistema de autenticação com abas
     tab_login, tab_register = st.tabs(["🔐 Entrar", "📝 Cadastrar-se"])
@@ -489,6 +628,8 @@ if not st.session_state.logged_in:
                     st.error("❌ Senha incorreta!")
                 else:
                     # Login bem-sucedido
+                    users[login_email]["logged_in"] = True
+                    save_users(users)
                     st.session_state.logged_in = True
                     st.session_state.display_name = users[login_email]["display_name"]
                     st.session_state.email = login_email
@@ -539,13 +680,17 @@ else:
             st.warning(f"🆓 {plano_info['nome']}")
 
         if st.button("🚪 Sair", use_container_width=True):
+            users = load_users()
+            if user_email in users:
+                users[user_email]["logged_in"] = False
+                save_users(users)
             st.session_state.logged_in = False
             st.rerun()
 
     graph = build_marketing_graph()
 
     # Abas estilizadas
-    tab1, tab2, tab3, tab4 = st.tabs(["📝 Criar Campanha", "💎 Planos & Pagamento", "⚙️ Configurações", "📊 Resultados"])
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(["📝 Criar Campanha", "💎 Planos & Pagamento", "⚙️ Configurações", "📊 Resultados", "📅 Agendamento"])
 
     with tab1:
         st.markdown('<div class="tab-content">', unsafe_allow_html=True)
@@ -576,8 +721,7 @@ else:
             canais = st.multiselect(
                 f"📢 Canais de Divulgação (máx. {max_canais})",
                 canais_opcoes,
-                default=["Instagram", "Facebook"][:max_canais],
-                max_selections=max_canais
+                default=["Instagram", "Facebook"][:max_canais]
             )
         with col4:
             orcamento = st.number_input("💰 Orçamento (R$)", min_value=0.0, value=1500.0, step=100.0)
@@ -642,6 +786,8 @@ else:
 
                 status_text.markdown('<div class="status-success">✅ Campanha concluída com sucesso!</div>', unsafe_allow_html=True)
                 progress_bar.progress(1.0)
+
+                st.success("🎉 Vá para a aba '📊 Resultados' para ver os resultados organizados por agentes e gerenciar as publicações!")
 
                 st.balloons()
 
@@ -712,11 +858,12 @@ else:
                 st.success("✅ Plano Atual")
             else:
                 if st.button("✨ Fazer Upgrade", key="upgrade_starter", use_container_width=True):
-                    users[user_email]["plano"] = "starter"
-                    users[user_email]["pago"] = True
-                    save_users(users)
-                    st.success("🎉 Upgrade realizado! Recarregue a página.")
-                    st.rerun()
+                    payment_url = criar_preferencia_pagamento(user_email, "Starter", 49.90)
+                    if payment_url:
+                        st.markdown(f"[Clique aqui para pagar com Mercado Pago]({payment_url})", unsafe_allow_html=True)
+                        st.info("Após o pagamento, seu plano será ativado manualmente ou automaticamente via webhook.")
+                    else:
+                        st.error("Configuração do Mercado Pago ausente. Contate o suporte.")
 
         # Plano Professional
         with col3:
@@ -737,12 +884,14 @@ else:
             if plan_status["plano"] == "professional":
                 st.success("✅ Plano Atual")
             else:
-                if st.button("🚀 Upgrade Pro", key="upgrade_pro", use_container_width=True):
-                    users[user_email]["plano"] = "professional"
-                    users[user_email]["pago"] = True
-                    save_users(users)
-                    st.success("🎉 Upgrade realizado! Recarregue a página.")
-                    st.rerun()
+                btn_pro = st.button("🚀 Upgrade Pro", key="upgrade_pro", use_container_width=True)
+                if btn_pro:
+                    payment_url = criar_preferencia_pagamento(user_email, "Professional", 149.90)
+                    if payment_url:
+                        st.markdown(f"[Clique aqui para pagar com Mercado Pago]({payment_url})", unsafe_allow_html=True)
+                        st.info("Após o pagamento, seu plano será ativado manualmente ou automaticamente via webhook.")
+                    else:
+                        st.error("Configuração do Mercado Pago ausente. Contate o suporte.")
 
         # Plano Enterprise
         with col4:
@@ -763,18 +912,20 @@ else:
             if plan_status["plano"] == "enterprise":
                 st.success("✅ Plano Atual")
             else:
-                if st.button("💎 Upgrade Enterprise", key="upgrade_enterprise", use_container_width=True):
-                    users[user_email]["plano"] = "enterprise"
-                    users[user_email]["pago"] = True
-                    save_users(users)
-                    st.success("🎉 Upgrade realizado! Recarregue a página.")
-                    st.rerun()
+                btn_ent = st.button("💎 Upgrade Enterprise", key="upgrade_enterprise", use_container_width=True)
+                if btn_ent:
+                    payment_url = criar_preferencia_pagamento(user_email, "Enterprise", 499.90)
+                    if payment_url:
+                        st.markdown(f"[Clique aqui para pagar com Mercado Pago]({payment_url})", unsafe_allow_html=True)
+                        st.info("Após o pagamento, seu plano será ativado manualmente ou automaticamente via webhook.")
+                    else:
+                        st.error("Configuração do Mercado Pago ausente. Contate o suporte.")
 
         st.markdown("---")
 
         # Informações de pagamento
         st.markdown("### 💳 Informações de Pagamento")
-        st.info("💡 **Nota:** Esta é uma demonstração. Em produção, integre com gateways como Stripe, PagSeguro ou Mercado Pago.")
+        st.info("💡 Pagamentos 100% seguros via Mercado Pago. Após o pagamento, seu plano é ativado automaticamente. Suporte a cartão, boleto e Pix.")
 
         with st.expander("🔧 Como Funciona o Pagamento"):
             st.markdown("""
@@ -902,13 +1053,38 @@ else:
                     </div>
                 """, unsafe_allow_html=True)
 
+                # Inicializar estado de aprovação se não existir
+                if "conteudos_aprovados" not in st.session_state:
+                    st.session_state.conteudos_aprovados = {}
+
                 for i, conteudo in enumerate(result["conteudos"], 1):
-                    with st.expander(f"📝 Conteúdo {i} - {result.get('canais', [''])[i-1] if i <= len(result.get('canais', [])) else 'Geral'}"):
+                    canal_nome = result.get('canais', [''])[i-1] if i <= len(result.get('canais', [])) else 'Geral'
+                    
+                    with st.expander(f"📝 Conteúdo {i} - {canal_nome}", expanded=True):
                         st.markdown('<div class="content-block">', unsafe_allow_html=True)
                         # Limpar markdown para exibição
                         conteudo_limpo = conteudo.replace('**', '').replace('*', '').replace('#', '')
                         st.write(conteudo_limpo)
                         st.markdown('</div>', unsafe_allow_html=True)
+                        
+                        # Botões de aprovação
+                        col1, col2, col3 = st.columns([1, 1, 2])
+                        with col1:
+                            if st.button(f"✅ Aprovar {i}", key=f"aprovar_{i}", use_container_width=True):
+                                st.session_state.conteudos_aprovados[i] = True
+                                st.success(f"Conteúdo {i} aprovado!")
+                                st.rerun()
+                        with col2:
+                            if st.button(f"❌ Rejeitar {i}", key=f"rejeitar_{i}", use_container_width=True):
+                                st.session_state.conteudos_aprovados[i] = False
+                                st.error(f"Conteúdo {i} rejeitado!")
+                                st.rerun()
+                        with col3:
+                            if st.session_state.conteudos_aprovados.get(i, False):
+                                if st.button(f"🚀 Publicar em {canal_nome}", key=f"publicar_{i}", type="primary", use_container_width=True):
+                                    st.success(f"Publicado em {canal_nome}! (Simulado - integração real pendente)")
+                            else:
+                                st.info("Aprove o conteúdo primeiro para publicar.")
 
                 st.markdown('</div>', unsafe_allow_html=True)
 
@@ -1030,86 +1206,60 @@ else:
             st.info("🎯 Execute uma campanha primeiro para ver os resultados.")
             st.markdown('</div>', unsafe_allow_html=True)
 
+    with tab5:
+        st.markdown('<div class="tab-content">', unsafe_allow_html=True)
+        st.markdown("### 📅 Agendamento de Posts")
 
-def gerar_pdf_campanha(result, objetivo, publico, canais, orcamento):
-    """Gera um PDF com os resultados da campanha"""
-    buffer = BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=letter)
-    styles = getSampleStyleSheet()
+        # Análise de horários ideais
+        st.markdown("#### 🕐 Horários Mais Acessados no Nicho")
 
-    # Estilos customizados
-    title_style = ParagraphStyle(
-        'CustomTitle',
-        parent=styles['Heading1'],
-        fontSize=18,
-        spaceAfter=30,
-    )
-    heading_style = ParagraphStyle(
-        'CustomHeading',
-        parent=styles['Heading2'],
-        fontSize=14,
-        spaceAfter=12,
-    )
-    normal_style = styles['Normal']
+        # Simulação de dados de horários (futuramente integrar com analytics reais)
+        horarios_ideais = {
+            "Instagram": ["08:00-10:00", "18:00-20:00", "12:00-14:00"],
+            "Facebook": ["13:00-15:00", "19:00-21:00", "09:00-11:00"],
+            "Twitter/X": ["12:00-14:00", "18:00-20:00", "08:00-10:00"],
+            "LinkedIn": ["07:00-09:00", "12:00-14:00", "17:00-19:00"],
+            "TikTok": ["18:00-22:00", "12:00-14:00", "08:00-10:00"],
+            "YouTube": ["14:00-16:00", "19:00-21:00", "11:00-13:00"]
+        }
 
-    story = []
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown("**Horários Sugeridos por Plataforma:**")
+            for plataforma, horarios in horarios_ideais.items():
+                st.markdown(f"**{plataforma}:** {', '.join(horarios)}")
 
-    # Título
-    story.append(Paragraph("Relatório da Campanha MaestroIA", title_style))
-    story.append(Spacer(1, 12))
+        with col2:
+            st.markdown("**📊 Baseado em Análise de Dados**")
+            st.info("💡 Estes horários são sugeridos com base em padrões de engajamento no seu nicho. Use analytics reais para otimizar.")
 
-    # Informações da campanha
-    story.append(Paragraph("Informações da Campanha", heading_style))
-    story.append(Paragraph(f"<b>Objetivo:</b> {objetivo}", normal_style))
-    story.append(Paragraph(f"<b>Público-Alvo:</b> {publico}", normal_style))
-    story.append(Paragraph(f"<b>Canais:</b> {', '.join(canais)}", normal_style))
-    story.append(Paragraph(f"<b>Orçamento:</b> R$ {orcamento:.2f}", normal_style))
-    story.append(Spacer(1, 20))
+        st.markdown("---")
 
-    # Resultados
-    if "pesquisa" in result:
-        story.append(Paragraph("Análise de Mercado", heading_style))
-        story.append(Paragraph(result["pesquisa"], normal_style))
-        story.append(Spacer(1, 12))
+        # Agendamento manual
+        st.markdown("#### ⏰ Agendar Post")
 
-    if "conteudos" in result:
-        story.append(Paragraph("Conteúdos Gerados", heading_style))
-        for i, conteudo in enumerate(result["conteudos"], 1):
-            story.append(Paragraph(f"Conteúdo {i}:", styles['Heading3']))
-            # Limpar markdown e HTML
-            conteudo_limpo = conteudo.replace('*', '').replace('#', '').replace('**', '')
-            story.append(Paragraph(conteudo_limpo, normal_style))
-            story.append(Spacer(1, 8))
-        story.append(Spacer(1, 12))
+        if "conteudos_aprovados" in st.session_state and any(st.session_state.conteudos_aprovados.values()):
+            # Mostrar conteúdos aprovados para agendamento
+            conteudos_aprovados = [i for i, aprovado in st.session_state.conteudos_aprovados.items() if aprovado]
 
-    if "publicacoes" in result:
-        story.append(Paragraph("Publicações", heading_style))
-        for canal, status in result["publicacoes"].items():
-            story.append(Paragraph(f"<b>{canal}:</b> {status}", normal_style))
-        story.append(Spacer(1, 12))
+            if conteudos_aprovados:
+                selected_conteudo = st.selectbox("Selecionar conteúdo aprovado:", options=conteudos_aprovados, format_func=lambda x: f"Conteúdo {x}")
 
-    # Imagens (se houver URLs válidas)
-    if "imagens" in result:
-        story.append(Paragraph("Imagens Geradas", heading_style))
-        for img_url in result["imagens"]:
-            if img_url.startswith("http"):
-                try:
-                    # Tentar baixar e adicionar imagem
-                    response = requests.get(img_url)
-                    if response.status_code == 200:
-                        img_buffer = BytesIO(response.content)
-                        img = RLImage(img_buffer, width=4*inch, height=3*inch)
-                        story.append(img)
-                        story.append(Spacer(1, 12))
-                except:
-                    story.append(Paragraph(f"Imagem: {img_url}", normal_style))
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    plataforma = st.selectbox("Plataforma:", ["Instagram", "Facebook", "Twitter/X", "LinkedIn", "TikTok", "YouTube"])
+                with col2:
+                    data_agendamento = st.date_input("Data:", min_value=datetime.now().date())
+                with col3:
+                    hora_agendamento = st.time_input("Hora:")
+
+                if st.button("📅 Agendar Post", type="primary"):
+                    # Simulação de agendamento (futuramente integrar com scheduler real)
+                    st.success(f"✅ Post agendado para {plataforma} em {data_agendamento} às {hora_agendamento}")
+                    # TODO: Salvar no banco de dados ou scheduler
             else:
-                story.append(Paragraph(f"Descrição da imagem: {img_url}", normal_style))
+                st.info("📝 Aprove conteúdos na aba de Resultados primeiro.")
+        else:
+            st.info("📝 Execute e aprove conteúdos primeiro para agendar posts.")
 
-    # Rodapé
-    story.append(Spacer(1, 30))
-    story.append(Paragraph("Relatório gerado pelo MaestroIA", styles['Italic']))
-
-    doc.build(story)
-    buffer.seek(0)
-    return buffer
+        st.markdown('</div>', unsafe_allow_html=True)

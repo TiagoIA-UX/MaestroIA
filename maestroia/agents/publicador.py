@@ -35,16 +35,61 @@ llm = ChatOpenAI(
 def publicar_instagram_facebook(conteudo: str, canal: str) -> str:
     """Publicar no Instagram/Facebook via Meta Graph API"""
     if not META_ACCESS_TOKEN:
-        return f"Publicado no {canal} com sucesso (simulado): {conteudo[:100]}..."
+        return f"""⚠️ Integração com {canal} não configurada.
+
+**Como configurar:**
+1. Acesse https://developers.facebook.com/
+2. Crie um app e obtenha Access Token
+3. Configure permissões: pages_manage_posts, publish_to_groups
+4. Adicione META_ACCESS_TOKEN no arquivo .env
+5. Para Instagram: Configure Instagram Business Account
+
+Conteúdo pronto para publicação: {conteudo[:100]}..."""
     
-    # TODO: Implementar chamada real para Meta API
-    # Exemplo: POST /me/feed para Facebook, ou Instagram Basic Display API
-    return f"Publicado no {canal} com sucesso (API Meta): {conteudo[:100]}..."
+    try:
+        # Para Facebook
+        if canal.lower() == "facebook":
+            url = f"https://graph.facebook.com/me/feed"
+            params = {
+                "message": conteudo,
+                "access_token": META_ACCESS_TOKEN
+            }
+            response = requests.post(url, data=params)
+            if response.status_code == 200:
+                post_id = response.json().get("id")
+                return f"Publicado no Facebook com sucesso (ID: {post_id})"
+            else:
+                return f"Erro ao publicar no Facebook: {response.text}"
+        
+        # Para Instagram (mais complexo, requer Instagram Business Account)
+        elif canal.lower() == "instagram":
+            return f"""⚠️ Instagram requer configuração avançada.
+
+**Como configurar Instagram:**
+1. Conecte sua conta Instagram Business ao Facebook
+2. Use Instagram Basic Display API ou Graph API
+3. Obtenha long-lived access token
+4. Configure webhooks para notificações
+
+Conteúdo pronto: {conteudo[:100]}..."""
+        
+        return f"Canal {canal} não suportado"
+    except Exception as e:
+        return f"Erro ao publicar no {canal}: {str(e)}"
 
 def publicar_google_ads(conteudo: str) -> str:
     """Criar campanha no Google Ads"""
     if not GOOGLE_ADS_CUSTOMER_ID or not GOOGLE_ADS_DEVELOPER_TOKEN:
-        return f"Campanha Google Ads criada com sucesso (simulado) para: {conteudo[:100]}..."
+        return f"""⚠️ Integração com Google Ads não configurada.
+
+**Como configurar:**
+1. Acesse https://ads.google.com/
+2. Configure conta de desenvolvedor em https://console.developers.google.com/
+3. Obtenha Developer Token e Customer ID
+4. Configure OAuth 2.0 credentials
+5. Adicione no .env: GOOGLE_ADS_CUSTOMER_ID, GOOGLE_ADS_DEVELOPER_TOKEN, etc.
+
+Campanha pronta: {conteudo[:100]}..."""
     
     # TODO: Implementar Google Ads API
     return f"Campanha Google Ads criada com sucesso (API Google): {conteudo[:100]}..."
@@ -52,7 +97,16 @@ def publicar_google_ads(conteudo: str) -> str:
 def publicar_twitter(conteudo: str) -> str:
     """Publicar tweet no Twitter/X"""
     if not all([TWITTER_API_KEY, TWITTER_API_SECRET, TWITTER_ACCESS_TOKEN, TWITTER_ACCESS_TOKEN_SECRET]):
-        return f"Post publicado no Twitter/X com sucesso (simulado): {conteudo[:100]}..."
+        return f"""⚠️ Integração com Twitter/X não configurada.
+
+**Como configurar:**
+1. Acesse https://developer.twitter.com/
+2. Crie um projeto e app
+3. Obtenha API Key, API Secret, Access Token e Access Secret
+4. Configure permissões de escrita
+5. Adicione no .env: TWITTER_API_KEY, TWITTER_API_SECRET, etc.
+
+Tweet pronto: {conteudo[:100]}..."""
     
     try:
         client = tweepy.Client(
@@ -69,15 +123,60 @@ def publicar_twitter(conteudo: str) -> str:
 def publicar_linkedin(conteudo: str) -> str:
     """Publicar no LinkedIn"""
     if not LINKEDIN_ACCESS_TOKEN:
-        return f"Post profissional publicado no LinkedIn com sucesso (simulado): {conteudo[:100]}..."
+        return f"""⚠️ Integração com LinkedIn não configurada.
+
+**Como configurar:**
+1. Acesse https://developer.linkedin.com/
+2. Crie uma aplicação
+3. Configure OAuth 2.0 e obtenha Access Token
+4. Solicite permissões: w_member_social, w_organization_social
+5. Adicione LINKEDIN_ACCESS_TOKEN no .env
+
+Post profissional pronto: {conteudo[:100]}..."""
     
-    # TODO: Implementar LinkedIn API
-    return f"Post publicado no LinkedIn com sucesso (API LinkedIn): {conteudo[:100]}..."
+    try:
+        url = "https://api.linkedin.com/v2/ugcPosts"
+        headers = {
+            "Authorization": f"Bearer {LINKEDIN_ACCESS_TOKEN}",
+            "Content-Type": "application/json"
+        }
+        # Para post de texto simples
+        data = {
+            "author": "urn:li:person:YOUR_PERSON_URN",  # Precisa do URN do usuário
+            "lifecycleState": "PUBLISHED",
+            "specificContent": {
+                "com.linkedin.ugc.ShareContent": {
+                    "shareCommentary": {
+                        "text": conteudo
+                    },
+                    "shareMediaCategory": "NONE"
+                }
+            },
+            "visibility": {
+                "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"
+            }
+        }
+        response = requests.post(url, headers=headers, json=data)
+        if response.status_code == 201:
+            return "Post publicado no LinkedIn com sucesso"
+        else:
+            return f"Erro ao publicar no LinkedIn: {response.text}"
+    except Exception as e:
+        return f"Erro ao publicar no LinkedIn: {str(e)}"
 
 def publicar_tiktok(conteudo: str) -> str:
     """Publicar no TikTok"""
     if not TIKTOK_ACCESS_TOKEN:
-        return f"Vídeo curto publicado no TikTok com sucesso (simulado): {conteudo[:100]}..."
+        return f"""⚠️ Integração com TikTok não configurada.
+
+**Como configurar:**
+1. Acesse https://developers.tiktok.com/
+2. Crie uma aplicação
+3. Configure Research API ou Creator Marketplace
+4. Obtenha Access Token
+5. Adicione TIKTOK_ACCESS_TOKEN no .env
+
+Vídeo curto pronto: {conteudo[:100]}..."""
     
     # TODO: Implementar TikTok API
     return f"Vídeo publicado no TikTok com sucesso (API TikTok): {conteudo[:100]}..."
@@ -85,7 +184,16 @@ def publicar_tiktok(conteudo: str) -> str:
 def publicar_youtube(conteudo: str) -> str:
     """Publicar vídeo no YouTube"""
     if not YOUTUBE_API_KEY:
-        return f"Vídeo publicado no YouTube com sucesso (simulado): {conteudo[:100]}..."
+        return f"""⚠️ Integração com YouTube não configurada.
+
+**Como configurar:**
+1. Acesse https://console.developers.google.com/
+2. Crie um projeto e habilite YouTube Data API v3
+3. Obtenha API Key
+4. Configure OAuth para uploads
+5. Adicione YOUTUBE_API_KEY no .env
+
+Vídeo pronto: {conteudo[:100]}..."""
     
     # TODO: Implementar YouTube Data API
     return f"Vídeo publicado no YouTube com sucesso (API YouTube): {conteudo[:100]}..."
@@ -93,7 +201,15 @@ def publicar_youtube(conteudo: str) -> str:
 def publicar_pinterest(conteudo: str) -> str:
     """Publicar Pin no Pinterest"""
     if not PINTEREST_ACCESS_TOKEN:
-        return f"Pin visual publicado no Pinterest com sucesso (simulado): {conteudo[:100]}..."
+        return f"""⚠️ Integração com Pinterest não configurada.
+
+**Como configurar:**
+1. Acesse https://developers.pinterest.com/
+2. Crie uma aplicação
+3. Configure OAuth e obtenha Access Token
+4. Adicione PINTEREST_ACCESS_TOKEN no .env
+
+Pin visual pronto: {conteudo[:100]}..."""
     
     # TODO: Implementar Pinterest API
     return f"Pin publicado no Pinterest com sucesso (API Pinterest): {conteudo[:100]}..."
