@@ -11,11 +11,23 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
+
 class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String, unique=True, index=True)
     hashed_password = Column(String)
+
+# Novo modelo para campanhas
+class Campaign(Base):
+    __tablename__ = "campaigns"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, index=True)
+    objetivo = Column(String)
+    publico_alvo = Column(String)
+    canais = Column(String)
+    orcamento = Column(String)
+    resultado = Column(String)
 
 Base.metadata.create_all(bind=engine)
 

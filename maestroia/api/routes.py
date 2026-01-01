@@ -1,4 +1,20 @@
 
+# Rota para buscar histórico de campanhas do usuário autenticado
+@app.get("/campaign/history")
+def get_campaign_history(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    campaigns = db.query(Campaign).filter(Campaign.user_id == current_user.id).all()
+    history = []
+    for c in campaigns:
+        history.append({
+            "id": c.id,
+            "objetivo": c.objetivo,
+            "publico_alvo": c.publico_alvo,
+            "canais": c.canais.split(",") if c.canais else [],
+            "orcamento": c.orcamento,
+            "resultado": json.loads(c.resultado) if c.resultado else None
+        })
+    return {"history": history}
+
 from fastapi import FastAPI, Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
@@ -78,10 +94,23 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
     access_token = create_access_token(data={"sub": user.email})
     return {"access_token": access_token, "token_type": "bearer"}
 
+from maestroia.core.database import Campaign
+
 @app.post("/campaign/run")
-async def run_campaign(state: MaestroState, current_user: User = Depends(get_current_user)):
+async def run_campaign(state: MaestroState, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     try:
         result = graph.invoke(state)
+        # Salva a campanha no banco de dados
+        campaign = Campaign(
+            user_id=current_user.id,
+            objetivo=state.objetivo if hasattr(state, 'objetivo') else str(getattr(state, 'objetivo', '')),
+            publico_alvo=state.publico_alvo if hasattr(state, 'publico_alvo') else str(getattr(state, 'publico_alvo', '')),
+            canais=','.join(state.canais) if hasattr(state, 'canais') and isinstance(state.canais, list) else str(getattr(state, 'canais', '')),
+            orcamento=str(state.orcamento) if hasattr(state, 'orcamento') else str(getattr(state, 'orcamento', '')),
+            resultado=json.dumps(result)
+        )
+        db.add(campaign)
+        db.commit()
         return {"status": "success", "result": result}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

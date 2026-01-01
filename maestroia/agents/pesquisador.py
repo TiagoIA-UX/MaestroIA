@@ -1,15 +1,16 @@
-from langchain_openai import ChatOpenAI
-from pytrends.request import TrendReq
 from maestroia.config.settings import (
-    OPENAI_API_KEY,
+    ENVIRONMENT,
     DEFAULT_LLM_MODEL,
     DEFAULT_TEMPERATURE,
 )
+from langchain_huggingface import HuggingFaceHubChat
+from pytrends.request import TrendReq
+
 from maestroia.core.state import MaestroState
 
-llm = ChatOpenAI(
-    api_key=OPENAI_API_KEY,
-    model=DEFAULT_LLM_MODEL,
+# Substitua o modelo abaixo por um modelo HuggingFace disponível/publico, ex: 'google/flan-t5-large' ou similar
+llm = HuggingFaceHubChat(
+    repo_id="google/flan-t5-large",  # ou outro modelo público
     temperature=DEFAULT_TEMPERATURE,
 )
 
